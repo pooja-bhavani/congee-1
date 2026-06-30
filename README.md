@@ -20,6 +20,7 @@
 
 <img width="2880" height="1800" alt="home" src="https://github.com/user-attachments/assets/1a347c28-86ba-4318-81c5-a07a6e822d27" />
 
+
 Your camera roll is the most detailed diary you'll ever keep — and the one you never read. Engram turns that pile of flat, unsearchable images into a **connected memory you can reason with**: it understands what's in each photo, links people / places / moods / moments into a knowledge graph, and lets you *ask*, *explore*, and even *teach* it.
 
 **Who it's for.** Engram is built around its most meaningful use: a private **reminiscence companion** — for an aging parent, someone whose memory is fading, or a family preserving a life story. It doesn't just show photos; it gently leads a person from one memory to a *connected* one they'd forgotten, read aloud, hands-free. Reminiscence is a clinically-grounded practice for memory care, and the most personal data of all should never leave the home — which is exactly why **self-hosted, open-source Cognee** is the heart of this project, not a footnote.
