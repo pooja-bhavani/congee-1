@@ -302,6 +302,68 @@ async def get_connections(photo_id: int, limit: int = 8) -> list[dict]:
     return out[:limit]
 
 
+async def reminiscence_thread(start_id: int | None = None, length: int = 6) -> list[dict]:
+    """Walk the knowledge graph to build a 'reminiscence thread' — a chain of
+    memories where each is connected to the previous through a shared concept
+    (a person, place, mood...). This is the graph's superpower: it can lead
+    someone from one memory to a related one they'd forgotten. Returns an ordered
+    list of {photo_id, shared:[concepts linking to the previous memory]}.
+    """
+    from collections import defaultdict
+
+    concepts, photo_to_concepts = await _concept_index()
+    if not photo_to_concepts:
+        return []
+
+    # adjacency: photo -> {neighbour_photo: [shared concept names]}
+    adj: dict[int, dict[int, list[str]]] = defaultdict(lambda: defaultdict(list))
+    for c in concepts:
+        pids = c["photoIds"]
+        for a in pids:
+            for b in pids:
+                if a != b:
+                    adj[a][b].append(c["name"])
+
+    # Start from the richest memory (most concepts) unless one is given.
+    if start_id is None or start_id not in photo_to_concepts:
+        start_id = max(photo_to_concepts, key=lambda p: len(photo_to_concepts[p]))
+
+    thread = [{"photo_id": start_id, "shared": []}]
+    visited = {start_id}
+    current = start_id
+    for _ in range(length - 1):
+        nbrs = [(b, names) for b, names in adj[current].items() if b not in visited]
+        if not nbrs:
+            break
+        # follow the strongest thread (most shared concepts)
+        b, names = max(nbrs, key=lambda x: len(x[1]))
+        thread.append({"photo_id": b, "shared": sorted(set(names))[:3]})
+        visited.add(b)
+        current = b
+    return thread
+
+
+async def forgotten_connection() -> dict | None:
+    """Surface one surprising link: two memories that share several concepts but
+    are otherwise unrelated — the kind of connection you'd never notice yourself."""
+    concepts, photo_to_concepts = await _concept_index()
+    from collections import defaultdict
+
+    pair_shared: dict[tuple[int, int], list[str]] = defaultdict(list)
+    for c in concepts:
+        pids = sorted(c["photoIds"])
+        for i in range(len(pids)):
+            for j in range(i + 1, len(pids)):
+                pair_shared[(pids[i], pids[j])].append(c["name"])
+    if not pair_shared:
+        return None
+    # the pair with the most shared concepts is the most evocative "rhyme"
+    (a, b), names = max(pair_shared.items(), key=lambda kv: len(kv[1]))
+    if len(names) < 2:
+        return None
+    return {"a": a, "b": b, "shared": sorted(set(names))[:5]}
+
+
 async def improve_memory() -> dict:
     """improve(): run Cognee's enrichment pass and report graph growth."""
     engine = await get_graph_engine()

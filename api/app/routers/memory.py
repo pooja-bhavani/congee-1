@@ -4,7 +4,7 @@ from __future__ import annotations
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from sqlalchemy.orm import Session
 
-from .. import cognee_memory
+from .. import cognee_memory, curation
 from ..db import get_db
 from ..models import Photo
 from ..schemas import FeedbackRequest, RecallRequest
@@ -72,6 +72,44 @@ async def connections(photo_id: int, db: Session = Depends(get_db)) -> list[dict
         if p:
             out.append({"photo": p.public(), "shared": l["shared"], "count": l["count"]})
     return out
+
+
+@router.get("/reminisce/thread")
+async def reminisce_thread(start: int | None = None, db: Session = Depends(get_db)) -> dict:
+    """A graph-guided reminiscence session: a chain of connected memories, each
+    with warm narration and the concept that links it to the one before."""
+    steps = await cognee_memory.reminiscence_thread(start)
+    out: list[dict] = []
+    for i, s in enumerate(steps):
+        p = db.get(Photo, s["photo_id"])
+        if p is None:
+            continue
+        pub = p.public()
+        shared = s.get("shared") or []
+        connect = None
+        if i > 0:
+            link = shared[0] if shared else "this feeling"
+            connect = f"This one stays with {link}."
+        out.append({
+            "photo": pub,
+            "narration": curation.narration_text(pub),
+            "connect": connect,
+            "shared": shared,
+        })
+    return {"thread": out}
+
+
+@router.get("/forgotten-connection")
+async def forgotten_connection(db: Session = Depends(get_db)) -> dict:
+    """One surprising link the graph found — two memories that quietly rhyme."""
+    res = await cognee_memory.forgotten_connection()
+    if not res:
+        return {"found": False}
+    a = db.get(Photo, res["a"])
+    b = db.get(Photo, res["b"])
+    if a is None or b is None:
+        return {"found": False}
+    return {"found": True, "a": a.public(), "b": b.public(), "shared": res["shared"]}
 
 
 @router.post("/improve")

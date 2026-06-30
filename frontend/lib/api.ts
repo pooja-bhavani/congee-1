@@ -34,6 +34,8 @@ export type ImproveResult = {
 
 export type Concept = { name: string; count: number; photoIds: number[] };
 export type Connection = { photo: Photo; shared: string[]; count: number };
+export type ThreadStep = { photo: Photo; narration: string; connect: string | null; shared: string[] };
+export type Forgotten = { found: boolean; a?: Photo; b?: Photo; shared?: string[] };
 
 const OWNER = "me";
 
@@ -122,6 +124,11 @@ export const api = {
   concepts: (limit = 40) => jget<Concept[]>(`/api/concepts?limit=${limit}`),
 
   connections: (id: number) => jget<Connection[]>(`/api/photos/${id}/connections`),
+
+  reminisceThread: (start?: number) =>
+    jget<{ thread: ThreadStep[] }>(`/api/reminisce/thread${start ? `?start=${start}` : ""}`),
+
+  forgottenConnection: () => jget<Forgotten>(`/api/forgotten-connection`),
 
   recall: async (query: string): Promise<{ answer: string; photos: Photo[] }> => {
     const res = await fetch(`${API}/api/recall`, {

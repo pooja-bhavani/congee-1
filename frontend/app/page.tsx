@@ -11,6 +11,7 @@ import { Reel } from "@/components/Reel";
 import { Insights } from "@/components/Insights";
 import { Timeline } from "@/components/Timeline";
 import { ConceptConstellation } from "@/components/ConceptConstellation";
+import { ForgottenConnection } from "@/components/ForgottenConnection";
 import { Logo } from "@/components/Logo";
 
 type Mode = { key: string; label: string };
@@ -300,6 +301,9 @@ export default function Home() {
 
         {/* Concept constellation — a map of the concepts Cognee extracted */}
         <ConceptConstellation onFocus={focusPhoto} />
+
+        {/* Forgotten Connection — graph serendipity */}
+        <ForgottenConnection onFocus={focusPhoto} />
 
         {/* Collections */}
         {collections.length > 0 && (
