@@ -20,6 +20,8 @@
 
 Your camera roll is the most detailed diary you'll ever keep — and the one you never read. Engram turns that pile of flat, unsearchable images into a **connected memory you can reason with**: it understands what's in each photo, links people / places / moods / moments into a knowledge graph, and lets you *ask*, *explore*, and even *teach* it.
 
+**Who it's for.** Engram is built around its most meaningful use: a private **reminiscence companion** — for an aging parent, someone whose memory is fading, or a family preserving a life story. It doesn't just show photos; it gently leads a person from one memory to a *connected* one they'd forgotten, read aloud, hands-free. Reminiscence is a clinically-grounded practice for memory care, and the most personal data of all should never leave the home — which is exactly why **self-hosted, open-source Cognee** is the heart of this project, not a footnote.
+
 Most "AI memory" is a vector database doing nearest-neighbour search. Engram is different because **Cognee** gives it a real **knowledge graph alongside vectors** — vectors find what's *similar*, the graph understands what's *connected*. And it's **100% self-hosted**: your memories never leave your machine.
 
 ## Cognee's four-operation memory lifecycle — all live
@@ -33,6 +35,8 @@ Most "AI memory" is a vector database doing nearest-neighbour search. Engram is 
 
 ## Features
 
+- ❤️ **Reminiscence Companion** *(the heart of Engram)* — a calm, voice-led, hands-free session that **walks the knowledge graph**: it starts at one memory and follows the connections (a shared person, place or feeling) to lead someone gently to a related memory they'd forgotten. Built for memory care. (`/reminisce`)
+- ✨ **Forgotten Connection** — graph serendipity: two memories that quietly rhyme through shared concepts, surfaced because only a graph could notice.
 - 🕸️ **Living knowledge graph** — every photo's people, places, moods and objects, extracted by Cognee and visualised interactively (`/graph`).
 - ✦ **Concept Constellation** — a physics-driven map of the concepts in your life; click a concept and its memories light up.
 - 🔗 **Memory Connections** — for any photo, traverse the graph to surface other memories that share concepts.
