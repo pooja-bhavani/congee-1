@@ -1,0 +1,67 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --font-sans: "Inter", system-ui, sans-serif;
+  --font-serif: "Space Grotesk", "Inter", system-ui, sans-serif;
+}
+
+html, body {
+  background: #0b0e1a;
+  color: #e8e9f2;
+  -webkit-font-smoothing: antialiased;
+}
+
+.glass {
+  background: rgba(124, 92, 255, 0.06);
+  border: 1px solid rgba(232, 233, 242, 0.1);
+  backdrop-filter: blur(14px);
+}
+
+/* Living ambient backdrop — slow drifting neural light (violet + cyan) */
+.aura-bg {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(40% 35% at 15% 12%, rgba(124, 92, 255, 0.20), transparent 60%),
+    radial-gradient(35% 30% at 85% 18%, rgba(56, 232, 208, 0.12), transparent 60%),
+    radial-gradient(45% 40% at 70% 90%, rgba(124, 92, 255, 0.12), transparent 60%);
+  animation: drift 24s ease-in-out infinite alternate;
+}
+@keyframes drift {
+  0%   { transform: translate3d(0, 0, 0) scale(1); }
+  100% { transform: translate3d(-3%, 2%, 0) scale(1.12); }
+}
+
+/* Fine film grain for depth */
+.grain::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  opacity: 0.035;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+@keyframes spin360 { to { transform: rotate(360deg); } }
+
+@keyframes growbar { from { width: 0%; } to { width: 100%; } }
+.progressbar { animation: growbar 6.5s linear forwards; }
+
+/* Slow Ken Burns drift for the frame */
+@keyframes kenburns {
+  0%   { transform: scale(1.05) translate(0, 0); }
+  100% { transform: scale(1.18) translate(-2%, -2%); }
+}
+.kenburns { animation: kenburns 16s ease-out forwards; }
+
+::-webkit-scrollbar { width: 8px; }
+::-webkit-scrollbar-thumb { background: rgba(244,239,231,0.12); border-radius: 8px; }
+
+@media (prefers-reduced-motion: reduce) {
+  * { animation: none !important; transition: none !important; }
+}

@@ -1,0 +1,21 @@
+# Self-hosted Cognee brain (kuzu graph + lancedb vectors + cognee system)
+.reverie_brain/
+# Photo metadata DB + local uploads
+*.db
+api/uploads/
+api/app/uploads/
+# Secrets / env
+.env
+api/.env
+frontend/.env.local
+# Python
+__pycache__/
+*.pyc
+.venv/
+# Node / Next
+node_modules/
+.next/
+out/
+.vercel/
+# OS
+.DS_Store

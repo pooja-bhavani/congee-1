@@ -1,0 +1,152 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&display=swap');
+@page { size: A4; margin: 16mm 0; }
+* { margin:0; padding:0; box-sizing:border-box; }
+body { font-family:'Inter',-apple-system,sans-serif; color:#1c1e2a; line-height:1.62; font-size:11.2pt; }
+.wrap { max-width: 720px; margin:0 auto; padding:0 30px; }
+.kicker { color:#7c5cff; font-weight:600; letter-spacing:.16em; text-transform:uppercase; font-size:9pt; }
+h1 { font-family:'Space Grotesk'; font-size:31pt; line-height:1.1; font-weight:700; margin:6px 0 12px; color:#16131f; letter-spacing:-0.5px; }
+h1 .hl { color:#7c5cff; }
+pre { background:#141228; color:#e8e9f2; border-radius:12px; padding:15px 17px; margin:14px 0; font-family:ui-monospace,Menlo,monospace; font-size:8.6pt; line-height:1.5; overflow-x:auto; white-space:pre-wrap; }
+pre .c { color:#8a7fb5; } pre .k { color:#7cf3ff; } pre .s { color:#9bf0a0; }
+.dek { font-size:13pt; color:#54586b; margin-bottom:6px; }
+.byline { font-size:9.5pt; color:#8a8fa3; border-bottom:1px solid #eceef4; padding-bottom:16px; margin-bottom:22px; }
+h2 { font-family:'Space Grotesk'; font-size:16.5pt; font-weight:600; color:#15131a; margin:26px 0 8px;
+     padding-left:12px; border-left:3px solid #7c5cff; }
+h3 { font-family:'Space Grotesk'; font-size:12pt; margin:16px 0 4px; color:#2a2d3d; }
+p { margin:0 0 11px; }
+a { color:#7c5cff; text-decoration:none; }
+ul { margin:0 0 12px 18px; } li { margin-bottom:5px; }
+code { font-family:ui-monospace,Menlo,monospace; font-size:9.6pt; background:#f3f1fb; color:#6b46e5; padding:1px 5px; border-radius:5px; }
+figure { margin:18px 0; }
+figure img { width:100%; border-radius:12px; border:1px solid #e4e6ef; box-shadow:0 8px 30px rgba(20,16,40,.12); display:block; }
+figcaption { font-size:9pt; color:#8a8fa3; text-align:center; margin-top:7px; }
+.lead { font-size:12.5pt; color:#3a3d4d; }
+.callout { background:linear-gradient(135deg,#f6f4ff,#eefbf9); border:1px solid #e6e2fb; border-radius:14px; padding:16px 18px; margin:18px 0; font-size:10.6pt; }
+.callout b { color:#6b46e5; }
+.tags span { display:inline-block; font-size:8.6pt; background:#f0eefb; color:#6b46e5; border-radius:20px; padding:2px 10px; margin:0 5px 5px 0; }
+.pagebreak { page-break-before: always; }
+.foot { margin-top:30px; padding-top:14px; border-top:1px solid #eceef4; font-size:9pt; color:#9a9fb0; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <p class="kicker">Building in public · WeMakeDevs × Cognee</p>
+  <h1>We gave our photos a <span class="hl">memory</span></h1>
+  <p class="dek">Building Engram on open-source Cognee — and why a knowledge-graph memory layer changed how we think about “AI that remembers.”</p>
+  <p class="byline">A build story · self-hosted Cognee · AWS Bedrock · Next.js + FastAPI</p>
+
+  <p class="lead">Your camera roll is the most detailed diary you’ll ever keep — and the one you never actually read. Thousands of moments, flat and unsearchable, scrolling past faster than you can remember them. We wanted to fix that. Not with another gallery app, but by giving a pile of photos something they’ve never had: <b>a memory that understands and connects them.</b></p>
+
+  <p>The result is <b>Engram</b> — a self-hosted “second brain” for your life’s photos. You add a photo; it’s understood, woven into a living knowledge graph, and instantly connected to every related moment you’ve ever captured. You can <i>ask</i> your memories questions, watch a constellation of the concepts in your life, and even teach it to get smarter. The engine that made all of this possible — the part we’d happily build on again — is <a href="https://github.com/topoteretes/cognee">open-source Cognee</a>.</p>
+
+  <figure>
+    <img src="file:///private/tmp/claude-501/-Users-sagarbhavani-Desktop-hack/c1a6a9aa-9535-4c14-b798-a79f09a12742/scratchpad/blog/home.png">
+    <figcaption>Engram — your photos, understood and connected. Every screen here runs on a self-hosted Cognee memory.</figcaption>
+  </figure>
+
+  <h2>What exactly is Cognee?</h2>
+  <p>Most “AI memory” today is a vector database with good PR: embed some text, do a nearest-neighbour search, stuff the results into a prompt. It’s fine for finding similar snippets — and hopeless at <i>reasoning across</i> them.</p>
+  <p><b>Cognee is an open-source memory layer that builds a real knowledge graph from your data — and pairs it with vectors.</b> Instead of just storing embeddings, it extracts the <i>entities</i> in your content (people, places, moods, objects, events) and the <i>relationships</i> between them, then keeps both a graph and a vector index in sync. That hybrid is the whole point: vectors find what’s <i>similar</i>; the graph understands what’s <i>connected</i>.</p>
+  <p>Crucially for us, it’s <b>fully self-hostable</b>. No managed service, no data leaving the machine — a local graph database (Kuzu), a local vector store (LanceDB), and SQLite, all spun up for you. That’s exactly what the “Best Use of Open Source” brief asked for, and exactly what you want for something as personal as your memories.</p>
+
+  <div class="callout">
+    <b>The four-operation memory lifecycle.</b> Cognee frames memory as four verbs, and we wired each to something you can see:
+    <ul>
+      <li><code>remember()</code> — add a photo → it joins the graph</li>
+      <li><code>recall()</code> — ask a question that connects memories</li>
+      <li><code>improve()</code> — rate an answer → the memory gets smarter</li>
+      <li><code>forget()</code> — delete a memory → its subgraph leaves the graph</li>
+    </ul>
+  </div>
+
+  <figure>
+    <img src="file:///private/tmp/claude-501/-Users-sagarbhavani-Desktop-hack/c1a6a9aa-9535-4c14-b798-a79f09a12742/scratchpad/blog/diagram.png">
+    <figcaption>How a photo becomes a memory: Bedrock understands it, Cognee remembers it, Engram lets you live in it.</figcaption>
+  </figure>
+
+  <h2>How Cognee actually helped us</h2>
+  <p>Here’s the honest version: the hard part of a memory app isn’t the UI — it’s turning unstructured stuff into something you can reason over. Cognee deleted that entire problem.</p>
+
+  <h3>1. One call turns a photo into structured memory</h3>
+  <p>We caption each photo with Amazon Bedrock (Claude vision), then hand the description to Cognee. A single <code>cognify()</code> pass extracts the people, places, moods and objects and links them into the graph. We wrote zero entity-extraction code, zero relationship logic, zero graph plumbing. Twenty-eight photos became a <b>292-node, 679-edge</b> graph of a life.</p>
+
+  <h3>2. Recall that reasons across memories</h3>
+  <p>This is where the graph earns its keep. Ask <i>“which memories show the ocean at sunset?”</i> and Cognee doesn’t just return similar images — it traverses the graph, connects the relevant moments, and answers in plain language with the exact photos it used. Vector-only search simply can’t make those cross-memory jumps.</p>
+
+  <figure>
+    <img src="file:///private/tmp/claude-501/-Users-sagarbhavani-Desktop-hack/c1a6a9aa-9535-4c14-b798-a79f09a12742/scratchpad/blog/graph.png">
+    <figcaption>The living knowledge graph — stars are your memories, dots are the concepts Cognee extracted, edges are how your life connects.</figcaption>
+  </figure>
+
+  <h3>3. Entity extraction we turned into a feature</h3>
+  <p>Because Cognee surfaces the concepts inside your photos, we could build a <b>Concept Constellation</b> — a physics-driven map of your mind where the biggest stars are the themes you live most. Click <code>sunset</code> and every sunset memory lights up. That feature didn’t require an ML pipeline; it’s just reading Cognee’s graph.</p>
+
+  <h3>4. Memory that improves with feedback</h3>
+  <p>The feature we’re proudest of: a thumbs-up / thumbs-down on every answer. The rating flows into Cognee via its session feedback API, and <code>improve()</code> folds it back into the graph weights so future recall is better. Most teams never touch this — it’s the difference between a memory that stores and a memory that <i>learns</i>.</p>
+
+  <h2>Under the hood: the whole memory, in a dozen lines</h2>
+  <p>The most striking part is how little code it takes. Here’s the core of Engram’s memory — the four operations, exactly as we call them:</p>
+  <pre><span class="c"># remember(): a photo's description becomes a connected memory in the graph</span>
+<span class="k">await</span> cognee.add(memory_text, dataset_name=<span class="s">"engram"</span>, node_set=[<span class="s">f"photo:{photo.id}"</span>])
+<span class="k">await</span> cognee.cognify(datasets=[<span class="s">"engram"</span>])    <span class="c"># entities + relations → graph</span>
+
+<span class="c"># recall(): reason across memories, grounded in the graph — not just similar images</span>
+results = <span class="k">await</span> cognee.search(
+    query_text=<span class="s">"which memories show the ocean at sunset?"</span>,
+    query_type=SearchType.GRAPH_COMPLETION,
+    session_id=<span class="s">"engram_main"</span>, feedback_influence=<span class="s">0.6</span>,
+)
+
+<span class="c"># improve(): your 👍/👎 folds back into the graph so recall gets better</span>
+<span class="k">await</span> cognee.session.add_feedback(session_id, qa_id, feedback_score=<span class="s">5</span>)
+<span class="k">await</span> cognee.improve(dataset=<span class="s">"engram"</span>, session_ids=[session_id])
+
+<span class="c"># forget(): remove a memory and its subgraph leaves the graph</span>
+<span class="k">await</span> cognee.forget(dataset=<span class="s">"engram"</span>, data_id=photo.cognee_data_id)</pre>
+  <p>That’s the whole lifecycle. No embedding pipeline, no graph schema, no relationship-extraction code — Cognee owns the hard parts, so we got to spend our time on the <i>experience</i> instead of the plumbing.</p>
+
+  <h2>The real-world gotchas (and why they’re worth it)</h2>
+  <p>No honest build log skips the rough edges:</p>
+  <ul>
+    <li><b>Configuration precedence.</b> Cognee’s settings can prefer a discovered <code>.env</code> over process env vars. Once we configured it through Cognee’s programmatic API instead, everything became deterministic.</li>
+    <li><b>Provider wiring.</b> We ran Cognee’s reasoning on AWS Bedrock (Claude) and embeddings on Bedrock Titan — both via Cognee’s LiteLLM layer. The model-id prefix and region needed care, but once set it ran for free on credits we already had: <b>no per-call SaaS bill.</b></li>
+    <li><b>Self-hosted means single-writer.</b> The local graph store is single-writer, so we serialised graph writes. A small price for a database that needs zero setup and never phones home.</li>
+  </ul>
+  <p>Every one of these was a config detail, not a wall. We never once had to fight the <i>core idea</i> — the graph, the extraction, the recall all just worked.</p>
+
+  <figure>
+    <img src="file:///private/tmp/claude-501/-Users-sagarbhavani-Desktop-hack/c1a6a9aa-9535-4c14-b798-a79f09a12742/scratchpad/blog/city.png">
+    <figcaption>City Lights — an ambient view of the places your memories wandered, built on the same graph.</figcaption>
+  </figure>
+
+  <h2>More than a photo app</h2>
+  <p>We built Engram around photos, but the idea reaches much further. A memory that <i>understands and connects</i> is exactly what we lose to time and illness. The same graph that answers <i>“which trips had the ocean and old friends?”</i> could help someone with fading memory walk back through their own life story — or let a family preserve a loved one’s history as something you can actually <b>ask</b>, not just scroll past. And self-hosting matters most precisely here: the most personal data of all should never have to leave your machine. That’s the horizon this points at, and Cognee’s open-source, on-device memory is what makes it reachable.</p>
+
+  <h2>Why you should use Cognee</h2>
+  <p>If you’re building anything that needs to <i>remember</i> — an agent, a copilot, a personal app — here’s the case in one breath: <b>Cognee gives you a hybrid graph-plus-vector memory, self-hosted and open-source, with a clean four-verb API, in an afternoon.</b></p>
+  <ul>
+    <li><b>It reasons, not just retrieves.</b> The knowledge graph answers “how are these connected?”, which is what real memory is.</li>
+    <li><b>It’s yours.</b> Self-hosted on local databases — your data never leaves, no vendor lock-in, no usage meter.</li>
+    <li><b>It’s model-agnostic.</b> OpenAI, Bedrock, Ollama, local embeddings — swap providers with a line of config.</li>
+    <li><b>It’s genuinely complete.</b> Add, cognify, search, improve, forget, visualise — the whole memory lifecycle is there.</li>
+  </ul>
+
+  <p class="lead" style="margin-top:14px">We came to Cognee to win a hackathon. We’re staying because it’s the first memory layer that treats a memory like a memory — something connected, something that grows, something you can ask. Engram is just a photo frame on top of it. Point Cognee at your notes, your chats, your codebase, and you’ll see the same thing we did: the moment your data becomes a graph, it starts to feel like it <i>understands</i>.</p>
+
+  <p class="tags" style="margin-top:16px">
+    <span>#Cognee</span><span>#KnowledgeGraph</span><span>#AIMemory</span><span>#OpenSource</span><span>#AWSBedrock</span><span>#SelfHosted</span><span>#WeMakeDevs</span>
+  </p>
+
+  <div class="foot">
+    Engram is built entirely on self-hosted open-source Cognee (Kuzu + LanceDB), AWS Bedrock (Claude vision + Titan embeddings), Next.js and FastAPI. Cognee: <a href="https://github.com/topoteretes/cognee">github.com/topoteretes/cognee</a>.
+  </div>
+
+</div>
+</body>
+</html>
