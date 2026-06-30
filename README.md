@@ -79,7 +79,7 @@ NEXT_PUBLIC_API_URL=http://localhost:8000 npm run dev
 
 ## The build story
 
-We wrote up the experience — what Cognee is, how it helped, and the gotchas — in [`blog/`](blog/) (PDF + Markdown).
+I wrote up the experience — what Cognee is, how it helped, and the gotchas — in [`blog/`](blog/).
 
 ---
 
