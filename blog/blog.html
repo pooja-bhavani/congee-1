@@ -111,14 +111,33 @@ results = <span class="k">await</span> cognee.search(
 <span class="k">await</span> cognee.forget(dataset=<span class="s">"engram"</span>, data_id=photo.cognee_data_id)</pre>
   <p>That’s the whole lifecycle. No embedding pipeline, no graph schema, no relationship-extraction code — Cognee owns the hard parts, so we got to spend our time on the <i>experience</i> instead of the plumbing.</p>
 
-  <h2>The real-world gotchas (and why they’re worth it)</h2>
-  <p>No honest build log skips the rough edges:</p>
-  <ul>
-    <li><b>Configuration precedence.</b> Cognee’s settings can prefer a discovered <code>.env</code> over process env vars. Once we configured it through Cognee’s programmatic API instead, everything became deterministic.</li>
-    <li><b>Provider wiring.</b> We ran Cognee’s reasoning on AWS Bedrock (Claude) and embeddings on Bedrock Titan — both via Cognee’s LiteLLM layer. The model-id prefix and region needed care, but once set it ran for free on credits we already had: <b>no per-call SaaS bill.</b></li>
-    <li><b>Self-hosted means single-writer.</b> The local graph store is single-writer, so we serialised graph writes. A small price for a database that needs zero setup and never phones home.</li>
-  </ul>
-  <p>Every one of these was a config detail, not a wall. We never once had to fight the <i>core idea</i> — the graph, the extraction, the recall all just worked.</p>
+  <h2>Engineering notes: the parts that actually took the time</h2>
+  <p>Cognee gets you to a working memory graph fast — but a handful of non-obvious things ate real hours. In the spirit of paying it forward, here’s the texture of wiring a self-hosted, multi-provider memory system.</p>
+
+  <h3>1. Config precedence will surprise you</h3>
+  <p>Cognee’s settings are pydantic-based, and the dotenv file it discovers can win over your process environment variables. We run Cognee <i>from source</i>, and the repo ships its own <code>.env</code> pinning a different LLM and database directory — so our <code>os.environ</code> overrides were silently ignored, and the app kept booting against the wrong provider and the wrong brain folder. The fix that made everything deterministic was to stop fighting env vars and configure through Cognee’s <b>programmatic API</b> at startup:</p>
+  <pre><span class="c"># configure_cognee() — called once at startup, before the first request</span>
+cognee.config.system_root_directory(BRAIN / <span class="s">"system"</span>)   <span class="c"># cascades to every DB path</span>
+cognee.config.set_llm_provider(<span class="s">"bedrock"</span>)
+cognee.config.set_llm_model(<span class="s">"apac.anthropic.claude-3-5-sonnet-20241022-v2:0"</span>)
+cognee.config.set_llm_api_key(<span class="s">""</span>)        <span class="c"># &lt;- this empty string cost an hour</span>
+cognee.config.set_embedding_provider(<span class="s">"bedrock"</span>)
+cognee.config.set_embedding_model(<span class="s">"bedrock/amazon.titan-embed-text-v2:0"</span>)</pre>
+  <p>That <code>set_llm_api_key("")</code> line is the one that hurt. Cognee’s Bedrock adapter, if it sees <i>any</i> API key, forwards it as a bearer token — so the inherited key produced a cryptic <code>Invalid API Key format</code> straight from Bedrock. Empty key → it falls back to the AWS credential chain, which is what you actually want.</p>
+
+  <h3>2. Bedrock embeddings route differently than Bedrock chat</h3>
+  <p>Cognee’s chat path uses a dedicated adapter that sets <code>custom_llm_provider="bedrock"</code> explicitly. The <i>embedding</i> path goes through raw <code>litellm.aembedding</code>, which infers the provider from the model string — so the embedding model needs the <code>bedrock/</code> prefix (<code>bedrock/amazon.titan-embed-text-v2:0</code>) while the chat model does not. And litellm’s Bedrock SigV4 signing reads the region from <code>AWS_REGION_NAME</code> specifically — <i>not</i> <code>AWS_REGION</code> — so without it you get a baffling <code>'NoneType' object has no attribute 'split'</code> deep inside the signer. Two env-var names for the same region, in the same process.</p>
+
+  <h3>3. We pivoted embeddings mid-build</h3>
+  <p>The plan was local <code>fastembed</code> — free, offline, no API. But under Python 3.14 inside uvicorn, fastembed’s lazy import of <code>huggingface_hub._snapshot_download</code> blew up with <code>'NoneType' object is not subscriptable</code>. Rather than fight a transitive dependency on a deadline, we moved embeddings to Bedrock Titan — still free on credits we already had, and one fewer moving part. The lesson: a provider you already trust beats a “free” one that fights your runtime.</p>
+
+  <h3>4. Self-hosted means single-writer — and background tasks are fragile</h3>
+  <p>The local graph store (Kuzu) is single-writer, so two concurrent <code>cognify()</code> calls collide on a lock file. We serialise every graph write behind one <code>asyncio.Lock</code>. We also run <code>cognify()</code> in a FastAPI <code>BackgroundTask</code> so uploads return instantly — but those tasks die if the server restarts, leaving photos stuck “pending.” A small <code>/reweave</code> endpoint re-runs the graph build for any unfinished memory. For scale: <b>28 seeded photos became 292 nodes and 679 edges</b>, at roughly <b>10–15 s of <code>cognify</code> per photo</b>, serialised.</p>
+
+  <h3>5. Mapping a graph answer back to a photo</h3>
+  <p>GRAPH_COMPLETION answers in prose, so to highlight <i>which</i> photos an answer used, we prefix every remembered memory with a <code>[PhotoID:n]</code> marker and tag it with <code>node_set=["photo:n"]</code>. The marker survives into the answer text (verified), so a regex pulls the ids back out; the node_set gives us a hub node per photo for the graph view and for the “connected memories” traversal. Belt and suspenders, because LLM output formatting drifts.</p>
+
+  <p>None of these are Cognee’s fault — they’re the texture of a real, self-hosted, multi-provider system. And every one was a config detail, not a dead end. We never once had to fight the <i>core idea</i>: the graph, the extraction, the recall all just worked.</p>
 
   <figure>
     <img src="file:///private/tmp/claude-501/-Users-sagarbhavani-Desktop-hack/c1a6a9aa-9535-4c14-b798-a79f09a12742/scratchpad/blog/city.png">

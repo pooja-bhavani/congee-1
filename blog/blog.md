@@ -81,15 +81,38 @@ That’s the whole lifecycle. No embedding pipeline, no graph schema, no relatio
 
 We built Engram around photos, but the idea reaches much further. A memory that *understands and connects* is exactly what we lose to time and illness. The same graph that answers *“which trips had the ocean and old friends?”* could help someone with fading memory walk back through their own life story — or let a family preserve a loved one’s history as something you can actually **ask**, not just scroll past. And self-hosting matters most precisely here: the most personal data of all should never have to leave your machine. That’s the horizon this points at, and Cognee’s open-source, on-device memory is what makes it reachable.
 
-## The real-world gotchas (and why they’re worth it)
+## Engineering notes: the parts that actually took the time
 
-No honest build log skips the rough edges:
+Cognee gets you to a working memory graph fast — but a handful of non-obvious things ate real hours. In the spirit of paying it forward, here's the texture of wiring a self-hosted, multi-provider memory system.
 
-- **Configuration precedence.** Cognee’s settings can prefer a discovered `.env` over process env vars. Once we configured it through Cognee’s programmatic API instead, everything became deterministic.
-- **Provider wiring.** We ran Cognee’s reasoning on AWS Bedrock (Claude) and embeddings on Bedrock Titan — both via Cognee’s LiteLLM layer. The model-id prefix and region needed care, but once set it ran for free on credits we already had: **no per-call SaaS bill.**
-- **Self-hosted means single-writer.** The local graph store is single-writer, so we serialised graph writes. A small price for a database that needs zero setup and never phones home.
+### 1. Config precedence will surprise you
+Cognee's settings are pydantic-based, and the dotenv file it discovers can win over your process environment variables. We run Cognee *from source*, and the repo ships its own `.env` pinning a different LLM and database directory — so our `os.environ` overrides were silently ignored, and the app kept booting against the wrong provider and the wrong brain folder. The fix that made everything deterministic was to stop fighting env vars and configure through Cognee's **programmatic API** at startup:
 
-Every one of these was a config detail, not a wall. We never once had to fight the *core idea* — the graph, the extraction, the recall all just worked.
+```python
+# configure_cognee() — called once at startup, before the first request
+cognee.config.system_root_directory(BRAIN / "system")   # cascades to every DB path
+cognee.config.set_llm_provider("bedrock")
+cognee.config.set_llm_model("apac.anthropic.claude-3-5-sonnet-20241022-v2:0")
+cognee.config.set_llm_api_key("")        # <- this empty string cost an hour
+cognee.config.set_embedding_provider("bedrock")
+cognee.config.set_embedding_model("bedrock/amazon.titan-embed-text-v2:0")
+```
+
+That `set_llm_api_key("")` line is the one that hurt. Cognee's Bedrock adapter, if it sees *any* API key, forwards it as a bearer token — so the inherited key produced a cryptic `Invalid API Key format` straight from Bedrock. Empty key → it falls back to the AWS credential chain, which is what you actually want.
+
+### 2. Bedrock embeddings route differently than Bedrock chat
+Cognee's chat path uses a dedicated adapter that sets `custom_llm_provider="bedrock"` explicitly. The *embedding* path goes through raw `litellm.aembedding`, which infers the provider from the model string — so the embedding model needs the `bedrock/` prefix (`bedrock/amazon.titan-embed-text-v2:0`) while the chat model does not. And litellm's Bedrock SigV4 signing reads the region from `AWS_REGION_NAME` specifically — *not* `AWS_REGION` — so without it you get a baffling `'NoneType' object has no attribute 'split'` deep inside the signer. Two env-var names for the same region, in the same process.
+
+### 3. We pivoted embeddings mid-build
+The plan was local `fastembed` — free, offline, no API. But under Python 3.14 inside uvicorn, fastembed's lazy import of `huggingface_hub._snapshot_download` blew up with `'NoneType' object is not subscriptable`. Rather than fight a transitive dependency on a deadline, we moved embeddings to Bedrock Titan — still free on credits we already had, and one fewer moving part. The lesson: a provider you already trust beats a "free" one that fights your runtime.
+
+### 4. Self-hosted means single-writer — and background tasks are fragile
+The local graph store (Kuzu) is single-writer, so two concurrent `cognify()` calls collide on a lock file. We serialise every graph write behind one `asyncio.Lock`. We also run `cognify()` in a FastAPI `BackgroundTask` so uploads return instantly — but those tasks die if the server restarts, leaving photos stuck "pending." A small `/reweave` endpoint re-runs the graph build for any unfinished memory. For scale: **28 seeded photos became 292 nodes and 679 edges**, at roughly **10–15 s of `cognify` per photo**, serialised.
+
+### 5. Mapping a graph answer back to a photo
+GRAPH_COMPLETION answers in prose, so to highlight *which* photos an answer used, we prefix every remembered memory with a `[PhotoID:n]` marker and tag it with `node_set=["photo:n"]`. The marker survives into the answer text (verified), so a regex pulls the ids back out; the node_set gives us a hub node per photo for the graph view and for the "connected memories" traversal. Belt and suspenders, because LLM output formatting drifts.
+
+None of these are Cognee's fault — they're the texture of a real, self-hosted, multi-provider system. And every one was a config detail, not a dead end. We never once had to fight the *core idea*: the graph, the extraction, the recall all just worked.
 
 ![City Lights](./images/city.png)
 
