@@ -17,6 +17,7 @@ configured before `import cognee` runs — main.py does that, then imports this.
 from __future__ import annotations
 
 import asyncio
+import json
 import re
 from typing import Any
 
@@ -382,7 +383,36 @@ async def improve_memory() -> dict:
 
 
 async def forget_photo(photo) -> dict:
-    """forget(): remove a photo's memory from the graph.
+    """forget(): remove a photo's memory from the graph + vectors.
 
-    Wired fully in P3. Placeholder keeps the import surface stable for routers."""
-    raise NotImplementedError("forget_photo is implemented in P3")
+    Each photo's Cognee data item carries node_set=["photo:{id}"], so we match on
+    that (reliable, no content-guessing) and forget each matching item — its
+    graph nodes and vector entries leave the memory."""
+    from cognee.modules.data.methods import get_dataset_data, get_datasets_by_name
+    from cognee.modules.users.methods import get_default_user
+
+    tag = f"photo:{photo.id}"
+    user = await get_default_user()
+    removed = 0
+    async with _GRAPH_LOCK:
+        datasets = await get_datasets_by_name([DATASET], user.id)
+        if not datasets:
+            return {"ok": False, "removed": 0}
+        items = await get_dataset_data(datasets[0].id)
+        for d in items:
+            # node_set may come back as a list OR a JSON-encoded string.
+            node_set = d.node_set
+            if isinstance(node_set, str):
+                try:
+                    node_set = json.loads(node_set)
+                except Exception:  # noqa: BLE001
+                    node_set = [node_set]
+            if not isinstance(node_set, list):
+                node_set = []
+            if tag in node_set:
+                try:
+                    await cognee.forget(dataset=DATASET, data_id=d.id)
+                    removed += 1
+                except Exception:  # noqa: BLE001
+                    pass
+    return {"ok": removed > 0, "removed": removed}

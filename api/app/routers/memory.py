@@ -120,8 +120,23 @@ async def improve() -> dict:
 
 @router.post("/forget/{photo_id}")
 async def forget(photo_id: int, db: Session = Depends(get_db)) -> dict:
-    """forget(): remove a photo's memory from the graph (wired in P3)."""
+    """forget(): remove a photo's memory — its subgraph leaves the graph. Returns
+    the before/after graph counts so the shrinkage is visible."""
     photo = db.get(Photo, photo_id)
     if photo is None:
         raise HTTPException(404, "not found")
-    raise HTTPException(501, "forget is implemented in P3")
+    before = await cognee_memory.graph_counts()
+    res = await cognee_memory.forget_photo(photo)
+    db.delete(photo)
+    db.commit()
+    after = await cognee_memory.graph_counts()
+    return {
+        "forgotten": photo_id,
+        "removed_items": res.get("removed", 0),
+        "before": {"nodes": before["nodes"], "edges": before["edges"]},
+        "after": {"nodes": after["nodes"], "edges": after["edges"]},
+        "gone": {
+            "nodes": before["nodes"] - after["nodes"],
+            "edges": before["edges"] - after["edges"],
+        },
+    }

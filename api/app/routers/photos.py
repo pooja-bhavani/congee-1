@@ -6,6 +6,7 @@ import urllib.request
 from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, HTTPException, UploadFile
 from sqlalchemy.orm import Session
 
+from .. import cognee_memory
 from ..cognee_memory import weave_memory
 from ..db import get_db
 from ..ingest import ingest_photo
@@ -71,10 +72,15 @@ def toggle_favorite(photo_id: int, db: Session = Depends(get_db)) -> dict:
 
 
 @router.delete("/photos/{photo_id}")
-def delete_photo(photo_id: int, db: Session = Depends(get_db)) -> dict:
+async def delete_photo(photo_id: int, db: Session = Depends(get_db)) -> dict:
     p = db.query(Photo).get(photo_id)
     if not p:
         raise HTTPException(404, "not found")
+    # forget(): remove this memory from the graph + vectors before dropping the row.
+    try:
+        await cognee_memory.forget_photo(p)
+    except Exception:  # noqa: BLE001
+        pass
     # Best-effort: remove the local file if we stored one.
     if p.url and "/media/" in p.url:
         from pathlib import Path
