@@ -335,9 +335,20 @@ async def reminiscence_thread(start_id: int | None = None, length: int = 6) -> l
     for _ in range(length - 1):
         nbrs = [(b, names) for b, names in adj[current].items() if b not in visited]
         if not nbrs:
-            break
-        # follow the strongest thread (most shared concepts)
-        b, names = max(nbrs, key=lambda x: len(x[1]))
+            # Dead end: keep the session going by jumping to the unvisited memory
+            # most connected to anything we've already revisited.
+            candidates = [
+                (b, names)
+                for v in visited
+                for b, names in adj[v].items()
+                if b not in visited
+            ]
+            if not candidates:
+                break
+            b, names = max(candidates, key=lambda x: len(x[1]))
+        else:
+            # follow the strongest thread (most shared concepts)
+            b, names = max(nbrs, key=lambda x: len(x[1]))
         thread.append({"photo_id": b, "shared": sorted(set(names))[:3]})
         visited.add(b)
         current = b
