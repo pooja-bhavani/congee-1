@@ -229,6 +229,14 @@ async def export_graph() -> dict:
 
 _STRUCTURAL_TYPES = {"Photo", "DocumentChunk", "TextSummary", "TextDocument", "NodeSet", "Node"}
 
+# Generic entity/type names that make weak connection reasons — shown only as a
+# last resort so specific concepts (a lake, pine trees, a wedding) lead instead.
+_GENERIC_REASONS = {
+    "photograph", "photo", "image", "picture", "location", "place", "scene",
+    "view", "background", "foreground", "composition", "setting", "area",
+    "entity", "object", "thing", "item", "element", "concept", "structure",
+}
+
 
 async def _concept_index() -> tuple[list[dict], dict]:
     """Build the concept index from the live graph.
@@ -281,6 +289,87 @@ async def _concept_index() -> tuple[list[dict], dict]:
     return concepts, photo_to_concepts
 
 
+async def _photo_adjacency() -> dict[int, dict[int, list[str]]]:
+    """photo_id -> {other_photo_id: [reason concepts]} using the ACTUAL graph.
+
+    Two memories connect if their entities (a) share a name, (b) share an
+    EntityType (entity --is_a--> type), or (c) are joined by a graph edge. This
+    uses Cognee's real relationships, so genuinely related memories connect even
+    when Bedrock named their entities differently ("snow-laden evergreens" vs
+    "evergreen forest"). Specific reasons are preferred over generic type names.
+    """
+    from collections import defaultdict
+
+    engine = await get_graph_engine()
+    raw_nodes, raw_edges = await engine.get_graph_data()
+
+    name_of: dict[str, str] = {}
+    type_of: dict[str, str] = {}
+    photo_hub: dict[str, str] = {}
+    for n in raw_nodes:
+        nid = str(_attr(n, "id"))
+        nm = str(_attr(n, "name", "") or "")
+        name_of[nid] = nm
+        type_of[nid] = str(_attr(n, "type", "Node"))
+        if nm.startswith("photo:"):
+            photo_hub[nid] = nm.split("photo:", 1)[1]
+
+    node_photo: dict[str, str] = {}
+    for e in raw_edges:
+        src, tgt = str(e[0]), str(e[1])
+        if tgt in photo_hub:
+            node_photo[src] = photo_hub[tgt]
+
+    adj: dict[str, dict[str, list[str]]] = defaultdict(lambda: defaultdict(list))
+
+    def link(a: str, b: str, reason: str) -> None:
+        if a and b and a != b and reason:
+            adj[a][b].append(reason)
+            adj[b][a].append(reason)
+
+    # (a) same entity name across photos (most specific — listed first)
+    name_photos: dict[str, list[tuple[str, str]]] = defaultdict(list)
+    for nid, p in node_photo.items():
+        if type_of.get(nid) == "Entity" and name_of.get(nid):
+            name_photos[name_of[nid].lower()].append((p, name_of[nid]))
+    for ps in name_photos.values():
+        for i in range(len(ps)):
+            for j in range(i + 1, len(ps)):
+                link(ps[i][0], ps[j][0], ps[i][1])
+
+    # (c) a direct graph edge between entities of two different photos
+    for e in raw_edges:
+        src, tgt = str(e[0]), str(e[1])
+        pa, pb = node_photo.get(src), node_photo.get(tgt)
+        if pa and pb and pa != pb:
+            link(pa, pb, name_of.get(src) or name_of.get(tgt) or "linked")
+
+    # (b) entities sharing an EntityType (broader theme — kept last / generic)
+    type_members: dict[str, list[tuple[str, str]]] = defaultdict(list)
+    for e in raw_edges:
+        src, tgt = str(e[0]), str(e[1])
+        if type_of.get(tgt) == "EntityType" and src in node_photo:
+            type_members[tgt].append((node_photo[src], name_of.get(src, "")))
+    for tnode, mem in type_members.items():
+        tname = (name_of.get(tnode, "") or "shared theme").replace("_", " ")
+        for i in range(len(mem)):
+            for j in range(i + 1, len(mem)):
+                link(mem[i][0], mem[j][0], tname)
+
+    def _clean(reasons: list[str]) -> list[str]:
+        """Prefer specific concepts; push generic noise (photograph/location) last."""
+        specific = [r for r in reasons if r.lower() not in _GENERIC_REASONS]
+        generic = [r for r in reasons if r.lower() in _GENERIC_REASONS]
+        return list(dict.fromkeys(specific + generic))[:3]
+
+    out: dict[int, dict[int, list[str]]] = {}
+    for p, nbrs in adj.items():
+        if not p.isdigit():
+            continue
+        out[int(p)] = {int(o): _clean(r) for o, r in nbrs.items() if o.isdigit()}
+    return out
+
+
 async def get_concepts(limit: int = 40) -> list[dict]:
     """Top concepts Cognee extracted across all memories (for the Concept map)."""
     concepts, _ = await _concept_index()
@@ -288,18 +377,11 @@ async def get_concepts(limit: int = 40) -> list[dict]:
 
 
 async def get_connections(photo_id: int, limit: int = 8) -> list[dict]:
-    """Other photos connected to this one through shared concepts (graph traversal)."""
-    concepts, _ = await _concept_index()
-    from collections import defaultdict
-
-    shared: dict[int, list[str]] = defaultdict(list)
-    for c in concepts:
-        if photo_id in c["photoIds"]:
-            for pid in c["photoIds"]:
-                if pid != photo_id:
-                    shared[pid].append(c["name"])
-    out = [{"photoId": pid, "shared": names, "count": len(names)} for pid, names in shared.items()]
-    out.sort(key=lambda r: -r["count"])
+    """Other photos connected to this one through the knowledge graph."""
+    adj = await _photo_adjacency()
+    nbrs = adj.get(photo_id, {})
+    out = [{"photoId": o, "shared": r, "count": len(r)} for o, r in nbrs.items()]
+    out.sort(key=lambda x: -x["count"])
     return out[:limit]
 
 
@@ -310,70 +392,55 @@ async def reminiscence_thread(start_id: int | None = None, length: int = 6) -> l
     someone from one memory to a related one they'd forgotten. Returns an ordered
     list of {photo_id, shared:[concepts linking to the previous memory]}.
     """
-    from collections import defaultdict
-
-    concepts, photo_to_concepts = await _concept_index()
-    if not photo_to_concepts:
+    adj = await _photo_adjacency()
+    if not adj:
         return []
 
-    # adjacency: photo -> {neighbour_photo: [shared concept names]}
-    adj: dict[int, dict[int, list[str]]] = defaultdict(lambda: defaultdict(list))
-    for c in concepts:
-        pids = c["photoIds"]
-        for a in pids:
-            for b in pids:
-                if a != b:
-                    adj[a][b].append(c["name"])
+    def spec(reasons: list[str]) -> int:
+        """How many reasons are specific concepts (vs generic types)."""
+        return sum(1 for r in reasons if r.lower() not in _GENERIC_REASONS)
 
-    # Start from the richest memory (most concepts) unless one is given.
-    if start_id is None or start_id not in photo_to_concepts:
-        start_id = max(photo_to_concepts, key=lambda p: len(photo_to_concepts[p]))
+    # rank a candidate: follow specific shared concepts first, then any link.
+    def rank(item):
+        _b, r = item
+        return (spec(r), len(r))
+
+    # Start from the memory richest in SPECIFIC connections (a coherent cluster).
+    if start_id is None or start_id not in adj:
+        start_id = max(adj, key=lambda p: sum(spec(r) for r in adj[p].values()))
 
     thread = [{"photo_id": start_id, "shared": []}]
     visited = {start_id}
     current = start_id
     for _ in range(length - 1):
-        nbrs = [(b, names) for b, names in adj[current].items() if b not in visited]
+        nbrs = [(b, r) for b, r in adj.get(current, {}).items() if b not in visited]
         if not nbrs:
-            # Dead end: keep the session going by jumping to the unvisited memory
-            # most connected to anything we've already revisited.
-            candidates = [
-                (b, names)
-                for v in visited
-                for b, names in adj[v].items()
-                if b not in visited
-            ]
-            if not candidates:
+            # Dead end: jump to the unvisited memory most connected to any we've seen.
+            nbrs = [(b, r) for v in visited for b, r in adj.get(v, {}).items() if b not in visited]
+            if not nbrs:
                 break
-            b, names = max(candidates, key=lambda x: len(x[1]))
-        else:
-            # follow the strongest thread (most shared concepts)
-            b, names = max(nbrs, key=lambda x: len(x[1]))
-        thread.append({"photo_id": b, "shared": sorted(set(names))[:3]})
+        b, r = max(nbrs, key=rank)
+        thread.append({"photo_id": b, "shared": r[:3]})
         visited.add(b)
         current = b
     return thread
 
 
 async def forgotten_connection() -> dict | None:
-    """Surface one surprising link: two memories that share several concepts but
-    are otherwise unrelated — the kind of connection you'd never notice yourself."""
-    concepts, photo_to_concepts = await _concept_index()
-    from collections import defaultdict
-
-    pair_shared: dict[tuple[int, int], list[str]] = defaultdict(list)
-    for c in concepts:
-        pids = sorted(c["photoIds"])
-        for i in range(len(pids)):
-            for j in range(i + 1, len(pids)):
-                pair_shared[(pids[i], pids[j])].append(c["name"])
-    if not pair_shared:
+    """Surface one surprising link: two memories joined through the graph by
+    several shared threads — the kind of connection you'd never notice yourself."""
+    adj = await _photo_adjacency()
+    best: tuple[int, int, list[str]] | None = None
+    best_n = 1  # require at least 2 shared threads to count as a real "rhyme"
+    for a, nbrs in adj.items():
+        for b, reasons in nbrs.items():
+            if a < b and len(reasons) > best_n:
+                best_n = len(reasons)
+                best = (a, b, reasons)
+    if not best:
         return None
-    # the pair with the most shared concepts is the most evocative "rhyme"
-    (a, b), names = max(pair_shared.items(), key=lambda kv: len(kv[1]))
-    if len(names) < 2:
-        return None
-    return {"a": a, "b": b, "shared": sorted(set(names))[:5]}
+    a, b, reasons = best
+    return {"a": a, "b": b, "shared": reasons[:5]}
 
 
 async def improve_memory() -> dict:
