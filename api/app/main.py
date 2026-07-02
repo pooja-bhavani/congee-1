@@ -35,11 +35,41 @@ load_dotenv(ROOT / "api" / ".env")
 import cognee  # noqa: E402
 
 
+def _configure_store() -> None:
+    """Select the memory store. Two options, one toggle (COGNEE_STORE):
+
+    - 'postgres' — Cognee's *recommended production architecture* (Boss on the
+      Cognee stream: "set up a FastAPI server using Postgres"). Graph + vectors +
+      relational all live in Postgres/pgvector, which handles concurrent writes,
+      so the single-writer lock is no longer a constraint. Uses PG* env vars.
+    - 'local' (default) — fully self-hosted file DBs (kuzu + lancedb), no network,
+      maximally demo-reliable.
+    """
+    if os.environ.get("COGNEE_STORE", "local").lower() == "postgres" and os.environ.get("PGHOST"):
+        host = os.environ["PGHOST"]
+        port = os.environ.get("PGPORT", "5432")
+        name = os.environ.get("PGDATABASE", "postgres")
+        user = os.environ.get("PGUSER", "")
+        pw = os.environ.get("PGPASSWORD", "")
+        cognee.config.set_relational_db_config({
+            "db_provider": "postgres", "db_host": host, "db_port": port,
+            "db_name": name, "db_username": user, "db_password": pw,
+        })
+        cognee.config.set_graph_db_config({"graph_database_provider": "postgres"})  # reuses the relational conn
+        cognee.config.set_vector_db_config({
+            "vector_db_provider": "pgvector", "vector_db_url": host, "vector_db_host": host,
+            "vector_db_port": int(port), "vector_db_name": name,
+            "vector_db_username": user, "vector_db_key": pw,
+        })
+    else:
+        cognee.config.system_root_directory(str(BRAIN / "system"))  # cascades to db paths
+        cognee.config.data_root_directory(str(BRAIN / "data"))
+        cognee.config.set_vector_db_provider("lancedb")
+
+
 def configure_cognee() -> None:
-    """Pin brain + providers authoritatively (beats the clone .env)."""
-    cognee.config.system_root_directory(str(BRAIN / "system"))  # cascades to db paths
-    cognee.config.data_root_directory(str(BRAIN / "data"))
-    cognee.config.set_vector_db_provider("lancedb")
+    """Pin store + providers authoritatively (beats the clone .env)."""
+    _configure_store()
     # LLM -> AWS Bedrock Claude (free, ~/.aws default profile, ap-south-1).
     # CRUCIAL: clear any LLM_API_KEY the clone .env set (a Gemini key) — otherwise
     # the Bedrock adapter passes it as a bearer key and fails ("Invalid API Key

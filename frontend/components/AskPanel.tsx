@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { motion } from "framer-motion";
-import { Send, Sparkles, ThumbsDown, ThumbsUp, X } from "lucide-react";
+import { Link2, Send, Sparkles, ThumbsDown, ThumbsUp, X } from "lucide-react";
 import { api, type Photo } from "@/lib/api";
 
 type Turn = { q: string; answer: string; photos: Photo[]; qaId: string | null; rated: number | null };
@@ -98,11 +98,20 @@ export function AskPanel({ onClose }: { onClose: () => void }) {
               <div className="rounded-2xl rounded-tl-sm bg-cream/5 p-4">
                 <p className="text-sm leading-relaxed text-cream/90">{t.answer}</p>
                 {t.photos.length > 0 && (
-                  <div className="mt-3 flex gap-2 overflow-x-auto">
-                    {t.photos.slice(0, 5).map((p) => (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img key={p.id} src={p.url} alt={p.caption} className="h-16 w-16 shrink-0 rounded-lg object-cover" />
-                    ))}
+                  <div className="mt-3">
+                    {/* Provenance: the answer is traced back through the graph to the
+                        exact memories it drew on — not a black box. */}
+                    <div className="mb-1.5 flex items-center gap-1.5 text-[11px] text-cream/45">
+                      <Link2 className="h-3.5 w-3.5" />
+                      grounded in {t.photos.length} {t.photos.length === 1 ? "memory" : "memories"} · traced through the graph
+                    </div>
+                    <div className="flex gap-2 overflow-x-auto">
+                      {t.photos.slice(0, 6).map((p) => (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img key={p.id} src={p.url} alt={p.caption} title={p.caption}
+                          className="h-16 w-16 shrink-0 rounded-lg object-cover ring-1 ring-cream/10" />
+                      ))}
+                    </div>
                   </div>
                 )}
                 {/* Feedback → the memory learns from your rating (Cognee improve) */}
